@@ -365,6 +365,11 @@ class NetworkTestBase(unittest.TestCase):
 
 class _CommonTests:
 
+    def test_empty_yaml_lp1795343(self):
+        with open(self.config, 'w') as f:
+            f.write('''''')
+        self.generate_and_settle()
+
     @unittest.skip("Unsupported matching by driver / wifi matching makes this untestable for now")
     def test_mapping_for_driver(self):
         self.setup_ap('hw_mode=b\nchannel=1\nssid=fake net', None)
@@ -960,7 +965,7 @@ class _CommonTests:
       interfaces: [ethbn, ethb2]
       parameters:
         mode: balance-rr
-        mii-monitor-interval: 5
+        mii-monitor-interval: 50s
         resend-igmp: 100
       dhcp4: yes''' % {'r': self.backend, 'ec': self.dev_e_client, 'e2c': self.dev_e2_client})
         self.generate_and_settle()
@@ -1103,7 +1108,7 @@ class _CommonTests:
             sys.stdout.flush()
             out = subprocess.check_output(['systemd-resolve', '--status'], universal_newlines=True)
             self.assertIn('DNS Servers: 172.1.2.3', out)
-            self.assertIn('DNS Domain: fakesuffix', out)
+            self.assertIn('fakesuffix', out)
         else:
             sys.stdout.write('[/etc/resolv.conf] ')
             sys.stdout.flush()
@@ -1382,6 +1387,30 @@ wpa_passphrase=12345678
 class TestNetworkd(NetworkTestBase, _CommonTests):
     backend = 'networkd'
 
+    def test_link_route_v4(self):
+        self.setup_eth(None)
+        with open(self.config, 'w') as f:
+            f.write('''network:
+  renderer: %(r)s
+  ethernets:
+    %(ec)s:
+      addresses:
+          - 192.168.5.99/24
+      gateway4: 192.168.5.1
+      routes:
+          - to: 10.10.10.0/24
+            scope: link
+            metric: 99''' % {'r': self.backend, 'ec': self.dev_e_client})
+        self.generate_and_settle()
+        self.assert_iface_up(self.dev_e_client,
+                             ['inet 192.168.5.[0-9]+/24'])  # from DHCP
+        self.assertIn(b'default via 192.168.5.1',  # from DHCP
+                      subprocess.check_output(['ip', 'route', 'show', 'dev', self.dev_e_client]))
+        self.assertIn(b'10.10.10.0/24 proto static scope link',
+                      subprocess.check_output(['ip', 'route', 'show', 'dev', self.dev_e_client]))
+        self.assertIn(b'metric 99',  # check metric from static route
+                      subprocess.check_output(['ip', 'route', 'show', '10.10.10.0/24']))
+
     def test_eth_dhcp6_off(self):
         self.setup_eth('slaac')
         with open(self.config, 'w') as f:
@@ -1643,6 +1672,95 @@ class TestNetworkd(NetworkTestBase, _CommonTests):
             self.assertEqual(f.read().strip(), self.dev_e_client)
         with open('/sys/class/net/mybond/bonding/arp_validate') as f:
             self.assertEqual(f.read().strip(), 'all 3')
+
+    def test_bond_mac_rename(self):
+        self.setup_eth(None)
+        self.start_dnsmasq(None, self.dev_e2_ap)
+        self.addCleanup(subprocess.call, ['ip', 'link', 'delete', 'mybond'], stderr=subprocess.DEVNULL)
+        with open(self.config, 'w') as f:
+            f.write('''network:
+  renderer: %(r)s
+  ethernets:
+    ethbn1:
+      match: {name: %(ec)s}
+      dhcp4: no
+    ethbn2:
+      match: {name: %(e2c)s}
+      dhcp4: no
+  bonds:
+    mybond:
+      interfaces: [ethbn1, ethbn2]
+      macaddress: 00:0a:f7:72:a7:28
+      mtu: 9000
+      addresses: [ 192.168.5.9/24 ]
+      gateway4: 192.168.5.1
+      parameters:
+        down-delay: 0
+        lacp-rate: fast
+        mii-monitor-interval: 100
+        mode: 802.3ad
+        transmit-hash-policy: layer3+4
+        up-delay: 0
+      ''' % {'r': self.backend, 'ec': self.dev_e_client, 'e2c': self.dev_e2_client})
+        self.generate_and_settle()
+        self.assert_iface_up(self.dev_e_client,
+                             ['master mybond', '00:0a:f7:72:a7:28'],
+                             ['inet '])
+        self.assert_iface_up(self.dev_e2_client,
+                             ['master mybond', '00:0a:f7:72:a7:28'],
+                             ['inet '])
+        self.assert_iface_up('mybond',
+                             ['inet 192.168.5.[0-9]+/24'])
+        with open('/sys/class/net/mybond/bonding/slaves') as f:
+            self.assertIn(self.dev_e_client, f.read().strip())
+
+    def test_bridge_anonymous(self):
+        self.setup_eth(None)
+        self.addCleanup(subprocess.call, ['ip', 'link', 'delete', 'mybr'], stderr=subprocess.DEVNULL)
+        self.start_dnsmasq(None, self.dev_e2_ap)
+        with open(self.config, 'w') as f:
+            f.write('''network:
+  renderer: %(r)s
+  ethernets:
+    ethbr:
+      match: {name: %(e2c)s}
+  bridges:
+    mybr:
+      interfaces: [ethbr]''' % {'r': self.backend, 'ec': self.dev_e_client, 'e2c': self.dev_e2_client})
+        self.generate_and_settle()
+        self.assert_iface_up(self.dev_e_client,
+                             ['inet 192.168.5.[0-9]+/24'],
+                             ['master'])
+        self.assert_iface_up(self.dev_e2_client,
+                             ['master mybr'],
+                             ['inet '])
+        self.assert_iface_up('mybr',
+                             [],
+                             ['inet 192.168.6.[0-9]+/24'])
+        lines = subprocess.check_output(['bridge', 'link', 'show', 'mybr'],
+                                        universal_newlines=True).splitlines()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn(self.dev_e2_client, lines[0])
+
+    def test_bridge_isolated(self):
+        self.setup_eth(None)
+        self.addCleanup(subprocess.call, ['ip', 'link', 'delete', 'mybr'], stderr=subprocess.DEVNULL)
+        self.start_dnsmasq(None, self.dev_e2_ap)
+        with open(self.config, 'w') as f:
+            f.write('''network:
+  renderer: %(r)s
+  ethernets:
+    ethbr:
+      match: {name: %(e2c)s}
+  bridges:
+    mybr:
+      interfaces: []
+      addresses: [10.10.10.10/24]''' % {'r': self.backend, 'ec': self.dev_e_client, 'e2c': self.dev_e2_client})
+        subprocess.check_call(['netplan', 'apply'])
+        time.sleep(1)
+        out = subprocess.check_output(['ip', 'a', 'show', 'dev', 'mybr'],
+                                      universal_newlines=True)
+        self.assertIn('inet 10.10.10.10/24', out)
 
     def test_bridge_port_priority(self):
         self.setup_eth(None)
