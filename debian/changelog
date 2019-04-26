@@ -1,29 +1,128 @@
-netplan.io (0.40.1~18.04.4) bionic-security; urgency=medium
+netplan.io (0.96-0ubuntu0.18.04.4) bionic; urgency=medium
 
-  * No change rebuild in -security pocket to fix dependency issue
-    (LP: #1811210)
+  * debian/patches/git_revert_explicit_renderer_def_ebc212a.patch: revert
+    commit ebc212a: make renderer values explicit at the end of each parsing
+    pass; it breaks "default" renderer behavior when multiple files may set
+    a global renderer and expect the last to take effect globally.
+    (LP: #1825206)
+  * debian/patches/git_reorg_netdef_validation_181b583.patch: correct the
+    fallout from the above change: validate netdefs in a single pass at the
+    very end of parsing, once we know which is the applicable renderer. This
+    makes sure tunnels get validated correctly.
 
- -- Marc Deslauriers <marc.deslauriers@ubuntu.com>  Thu, 10 Jan 2019 12:03:08 -0500
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Fri, 26 Apr 2019 15:19:47 -0400
 
-netplan.io (0.40.1~18.04.3) bionic; urgency=medium
+netplan.io (0.96-0ubuntu0.18.04.3) bionic; urgency=medium
 
-  * Fix idempotency in renaming: bond members should be exempt from rename, as
-    they may all share a single MAC for the bond device. (LP: #1802322)
-  * tests/integration.py: add test designed to catch the above regression.
+  * debian/patches/disable-networkd-tunnels-ipip-gre.patch: disable IPIP and
+    GRE tunnel tests; those appear to be broken because neither the kernel nor
+    networkd bring up the device automatically as in other releases.
 
- -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 21 Nov 2018 14:42:59 -0500
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 09 Apr 2019 17:24:51 -0400
 
-netplan.io (0.40.1~18.04.2) bionic; urgency=medium
+netplan.io (0.96-0ubuntu0.18.04.2) bionic; urgency=medium
 
-  * Fix typo breaking rename on 'netplan apply'. (LP: #1770082)
+  * d/p/0001-Partially-revert-the-change-for-enabling-systemd-net.patch:
+    Partially revert changes to networkd jobs ordering: leave systemd-networkd
+    enabled in multi-user.target instead of network-online.target, as in some
+    minimal setups there might be no job requiring network-online.target,
+    whereas the natural target to reach for booting is multi-user.target.
+    (LP: #1821867)
 
- -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Mon, 22 Oct 2018 15:02:30 -0400
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Thu, 28 Mar 2019 14:03:17 -0400
 
-netplan.io (0.40.1~18.04.1) bionic; urgency=medium
+netplan.io (0.96-0ubuntu0.18.04.1) bionic; urgency=medium
 
-  * Backport netplan 0.40.1 to 18.04. (LP: #1793309)
+  * Backport netplan.io 0.96 to 18.04.
+  * debian/patches/glib_changes.patch: Patch tests to work again on older GLib.
+  * debian/control: adjust Depends for bionic / re-add nplan package.
 
- -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Thu, 04 Oct 2018 13:59:42 -0400
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Thu, 07 Mar 2019 17:07:27 -0500
+
+netplan.io (0.96-0ubuntu1) disco; urgency=medium
+
+  * New upstream release 0.96.
+    - Moved netplan-wpa@ services to earlier at boot (LP: #1819014)
+    - Restart services when unconfiguring (LP: #1811868)
+    - Use the .nmconnection extension for NM keyfiles (LP: #1817655)
+    - Fixed integration tests runner to correctly report failures
+    - Enforce integrity for use-routes in networkd backend.
+    - Ensure terminal state at end of test (LP: #1817660)
+    - Various small test fixes.
+    - Fix typos in documentation.
+  * debian/control: Update Maintainer for ubuntu upload.
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Thu, 07 Mar 2019 14:00:26 -0500
+
+netplan.io (0.95-2) unstable; urgency=medium
+
+  * Set Priority to optional (Closes: #920327).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 24 Jan 2019 09:43:13 +0100
+
+netplan.io (0.95-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Update autopkgtests from the upstream.
+  * Add debian/watch following GitHub releases.
+  * Add Homepage (Closes: #917233).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Sat, 29 Dec 2018 16:34:23 +0100
+
+netplan.io (0.95) disco; urgency=medium
+
+  * New upstream release:
+    - Added support for WPA Enterprise / 802.1x authentication (LP: #1739578)
+    - Added support for setting up IP tunnels; supporting the types: ipip,
+      gretap, VTI, ISATAP (NetworkManager only), sit, gre, ipip6 and ip6ip6.
+      + Fixes sit (ipv6) tunnels using Hurricane Electric (LP: #1799487)
+    - Add support to override networkd UseMTU setting (LP: #1807273)
+    - Generate output files in dependency order
+    - Refactored unit and integration tests, along with various cleanups.
+    - Add DHCP overrides to control route usage and default metric for DHCP
+      routes. (LP: #1776228)
+    - Mitigate against bad matching on devices behind bonds then they share
+      the same MAC from a physical interface. (LP: #1804861)
+    - Added snapcraft.yaml.
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Fri, 14 Dec 2018 16:04:05 -0500
+
+netplan.io (0.90.1) disco; urgency=medium
+
+  * Do not assume /etc/network exists in postinst, as netbase 5.5 no longer
+    creates it.
+  * netplan/cli/commands/ip.py: fix a flake.
+
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Mon, 26 Nov 2018 10:59:38 +1300
+
+netplan.io (0.90) disco; urgency=medium
+
+  * New upstream release:
+    - build: fixes for building on RPM-based distros
+    - build: code prettiness changes (make indentation consistent)
+    - Fix device name-changes detection (LP: #1770082)
+    - Add support for IPv6 Privacy Extensions (LP: #1750392)
+    - Add dhcp{4,6}-overrides to control DNS, NTP, hostname updates via DHCP
+      (LP: #1759014)
+    - Clarify MAC and MTU setting requirements (LP: #1800668)
+    - Various documentation fixes (LP: #1800669)
+    - Improve error reporting to give clearer messages and context
+      (LP: #1800670)
+    - Skip non-physical/bond interfaces when applying renames (LP: #1802322)
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 21 Nov 2018 14:06:13 -0500
+
+netplan.io (0.40.2-1) unstable; urgency=medium
+
+  * Upload to Debian (Closes: #882661).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Wed, 14 Nov 2018 16:29:42 -0800
+
+netplan.io (0.40.2) cosmic; urgency=medium
+
+  * tests/integration.py: Mark regexes with r to pacify pycodestyle's W605.
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Thu, 04 Oct 2018 16:02:53 -0400
 
 netplan.io (0.40.1) cosmic; urgency=medium
 
