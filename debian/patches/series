@@ -1,2 +1,1 @@
-glib_changes.patch
 disable-networkd-tunnels-ipip-gre.patch

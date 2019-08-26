@@ -1,3 +1,32 @@
+netplan.io (0.98-0ubuntu1~18.04.1) bionic; urgency=medium
+
+  * Backport netplan.io 0.98 to 18.04. (LP: #1840832)
+  * Keep patches specific to 18.04 support:
+    - disable-networkd-tunnels-ipip-gre.patch: disable tests for unsupported
+      tunnel types (ipip and gre) in the 18.04 version of systemd-networkd.
+  * Drop debian/patches/glib_changes.patch: No longer necessary, changes were
+    made upstream to better account for the changes in HashTable.
+  * debian/netplan.io.install: add /usr/share/dbus-1
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Mon, 26 Aug 2019 16:36:03 -0400
+
+netplan.io (0.98-0ubuntu1) eoan; urgency=medium
+
+  * New upstream release: 0.98 (LP: #1840832)
+    - Added new "feature flags" to identify new features
+    - Added support for "use-domains" for DHCP overrides
+    - Added support for setting IPv6 MTU Bytes (LP: #1671951)
+    - Added a DBus interface to query and run 'netplan apply' via other apps
+    - Various build system fixes
+    - Improved validation for bonding modes
+    - Added support for "hash:" for hashed 802.1x passwords (LP: #1819831)
+    - Tolerate devices without a /sys path (LP: #1810043)
+    - Fix incorrect separator for networkd with ARP IP targets (LP: #1829264)
+  * debian/control: Add Build-Depends on libsystemd-dev for DBus feature, and
+    on dbus-x11 for dbus-launch used in tests.
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 21 Aug 2019 14:49:16 -0400
+
 netplan.io (0.97-0ubuntu1~18.04.1) bionic; urgency=medium
 
   * Backport netplan.io 0.97 to 18.04. (LP: #1828299)
