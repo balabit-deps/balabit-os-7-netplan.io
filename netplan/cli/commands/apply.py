@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 #
-# Copyright (C) 2018 Canonical, Ltd.
+# Copyright (C) 2018-2020 Canonical, Ltd.
 # Author: Mathieu Trudel-Lapierre <mathieu.trudel-lapierre@canonical.com>
+# Author: Łukasz 'sil2100' Zemczak <lukasz.zemczak@canonical.com>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,6 +27,7 @@ import shutil
 
 import netplan.cli.utils as utils
 from netplan.configmanager import ConfigManager, ConfigurationError
+from netplan.cli.sriov import apply_sriov_config
 
 import netifaces
 
@@ -74,7 +76,14 @@ class NetplanApply(utils.NetplanCommand):
         old_files_networkd = bool(glob.glob('/run/systemd/network/*netplan-*'))
         old_files_nm = bool(glob.glob('/run/NetworkManager/system-connections/netplan-*'))
 
-        if run_generate and subprocess.call([utils.get_generator_path()]) != 0:
+        generator_call = []
+        generate_out = None
+        if 'NETPLAN_PROFILE' in os.environ:
+            generator_call.extend(['valgrind', '--leak-check=full'])
+            generate_out = subprocess.STDOUT
+
+        generator_call.append(utils.get_generator_path())
+        if run_generate and subprocess.call(generator_call, stderr=generate_out) != 0:
             if exit_on_error:
                 sys.exit(os.EX_CONFIG)
             else:
@@ -118,10 +127,21 @@ class NetplanApply(utils.NetplanCommand):
         else:
             logging.debug('no netplan generated NM configuration exists')
 
+        # Refresh devices now; restarting a backend might have made something appear.
+        devices = netifaces.interfaces()
+
         # evaluate config for extra steps we need to take (like renaming)
         # for now, only applies to non-virtual (real) devices.
         config_manager.parse()
         changes = NetplanApply.process_link_changes(devices, config_manager)
+
+        # apply any SR-IOV related changes, if applicable
+        try:
+            apply_sriov_config(devices, config_manager)
+        except (ConfigurationError, RuntimeError) as e:
+            logging.error(str(e))
+            if exit_on_error:
+                sys.exit(1)
 
         # if the interface is up, we can still apply some .link file changes
         devices = netifaces.interfaces()
@@ -216,28 +236,9 @@ class NetplanApply(utils.NetplanCommand):
                 # do not rename members of virtual devices. MAC addresses
                 # may be the same for all interface members.
                 continue
-            # try to get the device's driver for matching.
-            devdir = os.path.join('/sys/class/net', interface)
-            try:
-                with open(os.path.join(devdir, 'operstate')) as f:
-                    state = f.read().strip()
-                    if state != 'down':
-                        logging.debug('device %s operstate is %s, not changing', interface, state)
-                        continue
-            except IOError as e:
-                logging.error('Cannot determine operstate of %s: %s', interface, str(e))
-                continue
 
-            try:
-                driver = os.path.realpath(os.path.join(devdir, 'device', 'driver'))
-                driver_name = os.path.basename(driver)
-            except IOError as e:
-                logging.debug('Cannot replug %s: cannot read link %s/device: %s', interface, devdir, str(e))
-                driver_name = None
-                pass
-
-            link = netifaces.ifaddresses(interface)[netifaces.AF_LINK][0]
-            macaddress = link.get('addr')
+            driver_name = utils.get_interface_driver_name(interface, only_down=True)
+            macaddress = utils.get_interface_macaddress(interface)
             if driver_name in matches['by-driver']:
                 new_name = matches['by-driver'][driver_name]
                 logging.debug(new_name)

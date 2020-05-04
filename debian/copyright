@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: netplan.io
-Upstream-Contact: Mathieu Trudel-Lapierre <mathieu.trudel-lapierre@canonical.com>
+Upstream-Contact: Łukasz 'sil2100' Zemczak <lukasz.zemczak@canonical.com>
 Source: https://github.com/CanonicalLtd/netplan
 
 Files: *

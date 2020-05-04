@@ -1,3 +1,85 @@
+netplan.io (0.99-0ubuntu3~18.04.1) bionic; urgency=medium
+
+  * Backport netplan.io 0.99 to 18.04. (LP: #1871825)
+  * Keep patches specific to 18.04 support:
+    - disable-networkd-tunnels-ipip-gre.patch: disable tests for unsupported
+      tunnel types (ipip and gre) in the 18.04 version of systemd-networkd.
+  * debian/control: introduce dependecies on libnetplan0
+
+ -- Lukas Märdian <lukas.maerdian@canonical.com>  Mon, 04 May 2020 09:51:02 +0200
+
+netplan.io (0.99-0ubuntu3) groovy; urgency=medium
+
+  * Drop d/p/0001-Not-connect-to-WiFi-after-netplan-apply.patch
+    - Replaced by upstream fix
+  * Add d/p/0001-Fix-LP-1874377-Not-connect-to-WiFi-after-netplan-app.patch:
+    - Proper upstream fix, which handles edge cases better and contains tests
+
+ -- Lukas Märdian <lukas.maerdian@canonical.com>  Thu, 30 Apr 2020 12:51:36 +0200
+
+netplan.io (0.99-0ubuntu2) focal; urgency=medium
+
+  [ Lukas Märdian ]
+  * debian/patches/0001-Not-connect-to-WiFi-after-netplan-apply.patch:
+    - Seems like the 'netplan apply' command was not properly adopted when
+      wired wpa_supplicant support was introduced.
+
+ -- Łukasz 'sil2100' Zemczak <lukasz.zemczak@ubuntu.com>  Thu, 23 Apr 2020 15:22:07 +0200
+
+netplan.io (0.99-0ubuntu1) focal; urgency=medium
+
+  [ Łukasz 'sil2100' Zemczak ]
+  * New upstream release: 0.99 (LP: #1871825)
+    - Fixed setting MTUBytes= in .network files as well
+    - Added "phase2" keyword to "auth" section
+    - Allowing "critical" to be used without "dhcp4"/"dhcp6" enabled
+    - Added support for GSM modems in the NetworkManager backend (with the
+      "modems" keyword)
+    - Added "emit-lldp" option for networkd backend (LP: #1862607)
+    - Fixed netplan incorrectly generating WPA PSK hex (LP: #1867690)
+    - Split out the netplan parser into a separate libnetplan library
+    - Added "ipv6-address-generation" field for NM backend
+    - Added WiFi flags for "bssid"/"band"/"channel"
+    - Added support for SR-IOV network devices
+  * debian/copyright: Change contact address as Matt is no longer available
+    via the previous e-mail.
+  * debian/control: Add new libnetplan packages
+  * Drop d/p/0002-Adopt-integration-tests-for-NetworkManager-v1.22-foc.patch:
+    included in upstream release
+
+  [ Lukas Märdian ]
+  * Drop d/p/workaround_tests_issues.patch:
+    The problem was solved upstream and is integrated via
+    d/p/0002-Adopt-integration-tests-for-NetworkManager-v1.22-foc.patch
+
+ -- Łukasz 'sil2100' Zemczak <lukasz.zemczak@ubuntu.com>  Thu, 16 Apr 2020 09:13:50 +0200
+
+netplan.io (0.98-0ubuntu4) focal; urgency=medium
+
+  [ Lukas Märdian ]
+  * d/p/0002-Adopt-integration-tests-for-NetworkManager-v1.22-foc.patch:
+    Adopt integration tests for NetworkManager v1.22 (focal)
+  * debian/tests/control: add new autopkgtest dependencies for the new
+    integration tests.
+
+ -- Łukasz 'sil2100' Zemczak <lukasz.zemczak@ubuntu.com>  Mon, 23 Mar 2020 09:24:39 +0100
+
+netplan.io (0.98-0ubuntu3) focal; urgency=medium
+
+  * No change rebuild to get Testsuite-Triggers restored, the previous
+    upload was built on an older serie/dpkg version which lead to the
+    dsc to be missing the reference
+
+ -- Sebastien Bacher <seb128@ubuntu.com>  Tue, 03 Mar 2020 11:31:26 +0100
+
+netplan.io (0.98-0ubuntu2) focal; urgency=medium
+
+  * debian/patches/workaround_tests_issues.patch:
+    - workaround a test issue, the default route seems to take a bit of
+      time to be applied in n-m, wait for it before erroring out
+
+ -- Sebastien Bacher <seb128@ubuntu.com>  Wed, 29 Jan 2020 23:33:03 +0100
+
 netplan.io (0.98-0ubuntu1~18.04.1) bionic; urgency=medium
 
   * Backport netplan.io 0.98 to 18.04. (LP: #1840832)

@@ -1,1 +1,2 @@
+0001-Fix-LP-1874377-Not-connect-to-WiFi-after-netplan-app.patch
 disable-networkd-tunnels-ipip-gre.patch

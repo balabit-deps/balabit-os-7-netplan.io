@@ -1,0 +1,175 @@
+From: Lukas Maerdian <lukas.maerdian@canonical.com>
+Date: Tue, 28 Apr 2020 14:35:36 +0200
+Subject: Fix LP#1874377: Not connect to WiFi after 'netplan apply' (#133)
+
+* Fix LP#1874377: Not connect to WiFi after 'netplan apply'
+
+Seems like the 'netplan apply' command was not properly adopted in #109 when wired wpa_supplicant support was introduced.
+
+Fixes: https://bugs.launchpad.net/ubuntu/+source/netplan.io/+bug/1874377
+---
+ netplan/cli/commands/apply.py | 10 ++++--
+ netplan/cli/utils.py          |  7 +++++
+ src/networkd.c                |  4 +++
+ tests/generator/test_wifis.py | 71 +++++++++++++++++++++++++++++++++++++++++++
+ tests/integration/base.py     |  2 +-
+ 5 files changed, 91 insertions(+), 3 deletions(-)
+
+diff --git a/netplan/cli/commands/apply.py b/netplan/cli/commands/apply.py
+index 0ec95f5..cf9f122 100644
+--- a/netplan/cli/commands/apply.py
++++ b/netplan/cli/commands/apply.py
+@@ -108,7 +108,13 @@ class NetplanApply(utils.NetplanCommand):
+         # stop backends
+         if restart_networkd:
+             logging.debug('netplan generated networkd configuration changed, restarting networkd')
+-            utils.systemctl_networkd('stop', sync=sync, extra_services=['netplan-wpa@*.service'])
++            wpa_services = ['netplan-wpa-*.service']
++            # Historically (up to v0.98) we had netplan-wpa@*.service files, in case of an
++            # upgraded system, we need to make sure to stop those.
++            if utils.systemctl_is_active('netplan-wpa@*.service'):
++                wpa_services.insert(0, 'netplan-wpa@*.service')
++            utils.systemctl_networkd('stop', sync=sync, extra_services=wpa_services)
++
+         else:
+             logging.debug('no netplan generated networkd configuration exists')
+ 
+@@ -169,7 +175,7 @@ class NetplanApply(utils.NetplanCommand):
+ 
+         # (re)start backends
+         if restart_networkd:
+-            netplan_wpa = [os.path.basename(f) for f in glob.glob('/run/systemd/system/*.wants/netplan-wpa@*.service')]
++            netplan_wpa = [os.path.basename(f) for f in glob.glob('/run/systemd/system/*.wants/netplan-wpa-*.service')]
+             utils.systemctl_networkd('start', sync=sync, extra_services=netplan_wpa)
+         if restart_nm:
+             utils.systemctl_network_manager('start', sync=sync)
+diff --git a/netplan/cli/utils.py b/netplan/cli/utils.py
+index 5f54b1a..c0eee03 100644
+--- a/netplan/cli/utils.py
++++ b/netplan/cli/utils.py
+@@ -86,6 +86,13 @@ def systemctl_networkd(action, sync=False, extra_services=[]):  # pragma: nocove
+     subprocess.check_call(command)
+ 
+ 
++def systemctl_is_active(unit_pattern):  # pragma: nocover (covered in autopkgtest)
++    '''Return True if at least one matching unit is running'''
++    if subprocess.call(['systemctl', '--quiet', 'is-active', unit_pattern]) == 0:
++        return True
++    return False
++
++
+ def get_interface_driver_name(interface, only_down=False):  # pragma: nocover (covered in autopkgtest)
+     devdir = os.path.join('/sys/class/net', interface)
+     if only_down:
+diff --git a/src/networkd.c b/src/networkd.c
+index e2bb111..6f6173a 100644
+--- a/src/networkd.c
++++ b/src/networkd.c
+@@ -990,8 +990,12 @@ cleanup_networkd_conf(const char* rootdir)
+ {
+     unlink_glob(rootdir, "/run/systemd/network/10-netplan-*");
+     unlink_glob(rootdir, "/run/netplan/wpa-*.conf");
++    unlink_glob(rootdir, "/run/systemd/system/systemd-networkd.service.wants/netplan-wpa-*.service");
+     unlink_glob(rootdir, "/run/systemd/system/netplan-wpa-*.service");
+     unlink_glob(rootdir, "/run/udev/rules.d/99-netplan-*");
++    /* Historically (up to v0.98) we had netplan-wpa@*.service files, in case of an
++     * upgraded system, we need to make sure to clean those up. */
++    unlink_glob(rootdir, "/run/systemd/system/systemd-networkd.service.wants/netplan-wpa@*.service");
+ }
+ 
+ /**
+diff --git a/tests/generator/test_wifis.py b/tests/generator/test_wifis.py
+index 8eb804e..d5b79cf 100644
+--- a/tests/generator/test_wifis.py
++++ b/tests/generator/test_wifis.py
+@@ -116,6 +116,77 @@ network={
+         self.assertTrue(os.path.islink(os.path.join(
+             self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa-wl0.service')))
+ 
++    def test_wifi_upgrade(self):
++        # pretend an old 'netplan-wpa@*.service' link still exists on an upgraded system
++        os.makedirs(os.path.join(self.workdir.name, 'lib/systemd/system'))
++        os.makedirs(os.path.join(self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants'))
++        with open(os.path.join(self.workdir.name, 'lib/systemd/system/netplan-wpa@.service'), 'w') as out:
++            out.write('''[Unit]
++Description=WPA supplicant for netplan %I
++DefaultDependencies=no
++Requires=sys-subsystem-net-devices-%i.device
++After=sys-subsystem-net-devices-%i.device
++Before=network.target
++Wants=network.target
++
++[Service]
++Type=simple
++ExecStart=/sbin/wpa_supplicant -c /run/netplan/wpa-%I.conf -i%I''')
++        os.symlink(os.path.join(self.workdir.name, 'lib/systemd/system/netplan-wpa@.service'),
++                   os.path.join(self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa@wl0.service'))
++
++        # run generate, which should cleanup the old files/symlinks
++        self.generate('''network:
++  version: 2
++  wifis:
++    wl0:
++      access-points:
++        "Joe's Home":
++          password: "s0s3kr1t"
++      dhcp4: yes''')
++
++        # verify new files/links exist, while old have been removed
++        self.assertTrue(os.path.isfile(os.path.join(
++            self.workdir.name, 'run/systemd/system/netplan-wpa-wl0.service')))
++        self.assertTrue(os.path.islink(os.path.join(
++            self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa-wl0.service')))
++        # old files/links
++        self.assertTrue(os.path.isfile(os.path.join(
++            self.workdir.name, 'lib/systemd/system/netplan-wpa@.service')))
++        self.assertFalse(os.path.islink(os.path.join(
++            self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa@wl0.service')))
++
++        # pretend another old systemd service file exists for wl1
++        os.symlink(os.path.join(self.workdir.name, 'lib/systemd/system/netplan-wpa@.service'),
++                   os.path.join(self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa@wl1.service'))
++
++        # run generate again, to verify the historical netplan-wpa@.service links and wl0 links are gone
++        self.generate('''network:
++  version: 2
++  wifis:
++    wl1:
++      access-points:
++        "Other Home":
++          password: "s0s3kr1t"
++      dhcp4: yes''')
++
++        # verify new files/links exist, while old have been removed
++        self.assertTrue(os.path.isfile(os.path.join(
++            self.workdir.name, 'run/systemd/system/netplan-wpa-wl1.service')))
++        self.assertTrue(os.path.islink(os.path.join(
++            self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa-wl1.service')))
++        # old files/links
++        self.assertTrue(os.path.isfile(os.path.join(
++            self.workdir.name, 'lib/systemd/system/netplan-wpa@.service')))
++        self.assertFalse(os.path.islink(os.path.join(
++            self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa@wl1.service')))
++        self.assertFalse(os.path.islink(os.path.join(
++            self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa@wl0.service')))
++        self.assertFalse(os.path.isfile(os.path.join(
++            self.workdir.name, 'run/systemd/system/netplan-wpa-wl0.service')))
++        self.assertFalse(os.path.islink(os.path.join(
++            self.workdir.name, 'run/systemd/system/systemd-networkd.service.wants/netplan-wpa-wl0.service')))
++
+     def test_wifi_route(self):
+         self.generate('''network:
+   version: 2
+diff --git a/tests/integration/base.py b/tests/integration/base.py
+index ed7100e..16fd2ee 100644
+--- a/tests/integration/base.py
++++ b/tests/integration/base.py
+@@ -93,7 +93,7 @@ class IntegrationTestsBase(unittest.TestCase):
+             pass
+ 
+     def tearDown(self):
+-        subprocess.call(['systemctl', 'stop', 'NetworkManager', 'systemd-networkd', 'netplan-wpa@*',
++        subprocess.call(['systemctl', 'stop', 'NetworkManager', 'systemd-networkd', 'netplan-wpa-*',
+                                               'systemd-networkd.socket'])
+         # NM has KillMode=process and leaks dhclient processes
+         subprocess.call(['systemctl', 'kill', 'NetworkManager'])

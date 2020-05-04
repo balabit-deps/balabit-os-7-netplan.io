@@ -34,6 +34,7 @@ Multi-Arch: foreign
 Depends: ${shlibs:Depends},
  ${misc:Depends},
  iproute2,
+ libnetplan0 (>= ${binary:Version}),
  python3,
  python3-yaml,
  python3-netifaces,
@@ -65,3 +66,37 @@ Description: YAML network configuration abstraction - transitional package
  networking daemon.
  .
  This is a transitional package that installs 'netplan.io'.
+
+Package: libnetplan0
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends},
+ ${misc:Depends},
+Description: YAML network configuration abstraction runtime library
+ netplan reads YAML network configuration files which are written
+ by administrators, installers, cloud image instantiations, or other OS
+ deployments. During early boot it then generates backend specific
+ configuration files in /run to hand off control of devices to a particular
+ networking daemon.
+ .
+ Currently supported backends are networkd and NetworkManager.
+ .
+ This package contains the necessary runtime library files.
+
+Package: libnetplan-dev
+Architecture: any
+Multi-Arch: same
+Depends: ${misc:Depends},
+ libnetplan0 (= ${binary:Version}),
+Description: Development files for netplan's libnetplan runtime library
+ netplan reads YAML network configuration files which are written
+ by administrators, installers, cloud image instantiations, or other OS
+ deployments. During early boot it then generates backend specific
+ configuration files in /run to hand off control of devices to a particular
+ networking daemon.
+ .
+ Currently supported backends are networkd and NetworkManager.
+ .
+ This package contains development files for developers wanting to use
+ libnetplan in their applications.
+
