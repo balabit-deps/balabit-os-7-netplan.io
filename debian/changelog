@@ -1,3 +1,11 @@
+netplan.io (0.99-0ubuntu3~18.04.2) bionic; urgency=medium
+
+  * Add d/p/Fix-invalid-bond-mode-SRU-regression-LP-1877643.patch (LP: #1877643)
+    - Fix regression in strict bond mode checking, introduced in netplan v0.98
+    - https://bugs.launchpad.net/ubuntu/+source/netplan.io/+bug/1877643
+
+ -- Lukas Märdian <lukas.maerdian@canonical.com>  Mon, 11 May 2020 10:00:09 +0200
+
 netplan.io (0.99-0ubuntu3~18.04.1) bionic; urgency=medium
 
   * Backport netplan.io 0.99 to 18.04. (LP: #1871825)

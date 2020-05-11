@@ -1,0 +1,50 @@
+From f49ec4cd9a86ad861157b25af45084ea06215900 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Lukas=20M=C3=A4rdian?= <lukas.maerdian@canonical.com>
+Date: Mon, 11 May 2020 09:31:41 +0200
+Subject: [PATCH] Fix invalid bond mode SRU regression (LP: #1877643)
+
+netplan < 0.98 accepted invalid bond modes, we should _not_ reject such
+configs, even though they are invalid, to avoid regressions in stables releases.
+
+This affects the bionic stable release, as the original version in this
+release shipped netplan < 0.98.
+---
+ src/parse.c                   | 2 +-
+ tests/generator/test_bonds.py | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/parse.c b/src/parse.c
+index f5fff3d..f024d66 100644
+--- a/src/parse.c
++++ b/src/parse.c
+@@ -921,7 +921,7 @@ handle_bond_mode(yaml_document_t* doc, yaml_node_t* node, const void* data, GErr
+         strcmp(scalar(node), "802.3ad") == 0 ||
+         strcmp(scalar(node), "balance-tlb") == 0 ||
+         strcmp(scalar(node), "balance-alb") == 0))
+-        return yaml_error(node, error, "unknown bond mode '%s'", scalar(node));
++        g_fprintf(stderr, "WARNING: unknown bond mode '%s'. Your config needs to be updated to work with future series of Ubuntu.\n", scalar(node));
+ 
+     return handle_netdef_str(doc, node, data, error);
+ }
+diff --git a/tests/generator/test_bonds.py b/tests/generator/test_bonds.py
+index cbaf1db..eb00f4b 100644
+--- a/tests/generator/test_bonds.py
++++ b/tests/generator/test_bonds.py
+@@ -667,10 +667,10 @@ class TestConfigErrors(TestBase):
+       interfaces: [eno1]
+       parameters:
+         mode: lacp
+-        arp-ip-targets:
+-          - 2001:dead:beef::1
+-      dhcp4: true''', expect_fail=True)
+-        self.assertIn("unknown bond mode 'lacp'", err)
++      dhcp4: true''', expect_fail=False)
++        # netplan < 0.98 accepted invalid bond modes, we should _not_ reject such
++        # configs, even though they are invalid, to avoid regressions in stables releases.
++        self.assertIn("WARNING: unknown bond mode 'lacp'", err)
+ 
+     def test_bond_invalid_arp_target(self):
+         self.generate('''network:
+-- 
+2.25.1
+
