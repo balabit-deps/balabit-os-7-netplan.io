@@ -46,6 +46,22 @@ unmanaged-devices+=interface-name:eth0,''')
         # should not allow NM to manage everything
         self.assertFalse(os.path.exists(self.nm_enable_all_conf))
 
+    def test_eth_lldp(self):
+        self.generate('''network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: n
+      emit-lldp: true''')
+
+        self.assert_networkd({'eth0.network': '''[Match]
+Name=eth0
+
+[Network]
+EmitLLDP=true
+LinkLocalAddressing=ipv6
+'''})
+
     def test_eth_mtu(self):
         self.generate('''network:
   version: 2
@@ -57,6 +73,48 @@ unmanaged-devices+=interface-name:eth0,''')
         self.assert_networkd({'eth1.link': '[Match]\nOriginalName=eth1\n\n[Link]\nWakeOnLan=off\nMTUBytes=1280\n',
                               'eth1.network': '''[Match]
 Name=eth1
+
+[Link]
+MTUBytes=1280
+
+[Network]
+LinkLocalAddressing=ipv6
+'''})
+        self.assert_networkd_udev(None)
+
+    def test_eth_sriov_vlan_filterv_link(self):
+        self.generate('''network:
+  version: 2
+  ethernets:
+    enp1:
+      dhcp4: n
+    enp1s16f1:
+      dhcp4: n
+      link: enp1''')
+
+        self.assert_networkd({'enp1.network': '''[Match]
+Name=enp1
+
+[Network]
+LinkLocalAddressing=ipv6
+''',
+                              'enp1s16f1.network': '''[Match]
+Name=enp1s16f1
+
+[Network]
+LinkLocalAddressing=ipv6
+'''})
+        self.assert_networkd_udev(None)
+
+    def test_eth_sriov_virtual_functions(self):
+        self.generate('''network:
+  version: 2
+  ethernets:
+    enp1:
+      virtual-function-count: 8''')
+
+        self.assert_networkd({'enp1.network': '''[Match]
+Name=enp1
 
 [Network]
 LinkLocalAddressing=ipv6
@@ -299,6 +357,72 @@ wake-on-lan=0
 
 [802-3-ethernet]
 mtu=1280
+
+[ipv4]
+method=link-local
+
+[ipv6]
+method=ignore
+'''})
+
+    def test_eth_sriov_link(self):
+        self.generate('''network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+    enp1:
+      dhcp4: n
+    enp1s16f1:
+      dhcp4: n
+      link: enp1''')
+
+        self.assert_networkd({})
+        self.assert_nm({'enp1': '''[connection]
+id=netplan-enp1
+type=ethernet
+interface-name=enp1
+
+[ethernet]
+wake-on-lan=0
+
+[ipv4]
+method=link-local
+
+[ipv6]
+method=ignore
+''',
+                        'enp1s16f1': '''[connection]
+id=netplan-enp1s16f1
+type=ethernet
+interface-name=enp1s16f1
+
+[ethernet]
+wake-on-lan=0
+
+[ipv4]
+method=link-local
+
+[ipv6]
+method=ignore
+'''})
+
+    def test_eth_sriov_virtual_functions(self):
+        self.generate('''network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+    enp1:
+      dhcp4: n
+      virtual-function-count: 8''')
+
+        self.assert_networkd({})
+        self.assert_nm({'enp1': '''[connection]
+id=netplan-enp1
+type=ethernet
+interface-name=enp1
+
+[ethernet]
+wake-on-lan=0
 
 [ipv4]
 method=link-local
