@@ -1,3 +1,10 @@
+netplan.io (0.99-0ubuntu3~18.04.3) bionic; urgency=medium
+
+  * d/p/0004-Fix-process_link_changes-handling-up-interfaces.patch:
+    - Fix process_link_changes handling 'up' interfaces (LP: #1875411)
+
+ -- Heitor Alves de Siqueira <halves@canonical.com>  Thu, 28 May 2020 21:09:51 +0000
+
 netplan.io (0.99-0ubuntu3~18.04.2) bionic; urgency=medium
 
   * Add d/p/Fix-invalid-bond-mode-SRU-regression-LP-1877643.patch (LP: #1877643)

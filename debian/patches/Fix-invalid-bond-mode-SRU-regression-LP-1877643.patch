@@ -1,5 +1,4 @@
-From f49ec4cd9a86ad861157b25af45084ea06215900 Mon Sep 17 00:00:00 2001
-From: =?UTF-8?q?Lukas=20M=C3=A4rdian?= <lukas.maerdian@canonical.com>
+From: =?utf-8?q?Lukas_M=C3=A4rdian?= <lukas.maerdian@canonical.com>
 Date: Mon, 11 May 2020 09:31:41 +0200
 Subject: [PATCH] Fix invalid bond mode SRU regression (LP: #1877643)
 
@@ -14,10 +13,10 @@ release shipped netplan < 0.98.
  2 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/src/parse.c b/src/parse.c
-index f5fff3d..f024d66 100644
+index c1dc175..a464c7f 100644
 --- a/src/parse.c
 +++ b/src/parse.c
-@@ -921,7 +921,7 @@ handle_bond_mode(yaml_document_t* doc, yaml_node_t* node, const void* data, GErr
+@@ -903,7 +903,7 @@ handle_bond_mode(yaml_document_t* doc, yaml_node_t* node, const void* data, GErr
          strcmp(scalar(node), "802.3ad") == 0 ||
          strcmp(scalar(node), "balance-tlb") == 0 ||
          strcmp(scalar(node), "balance-alb") == 0))
@@ -45,6 +44,3 @@ index cbaf1db..eb00f4b 100644
  
      def test_bond_invalid_arp_target(self):
          self.generate('''network:
--- 
-2.25.1
-

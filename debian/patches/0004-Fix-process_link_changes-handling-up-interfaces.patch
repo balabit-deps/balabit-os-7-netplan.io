@@ -1,0 +1,34 @@
+From 028f26f1fbef974284732480a92396550d118525 Mon Sep 17 00:00:00 2001
+From: Heitor Alves de Siqueira <halves@canonical.com>
+Date: Thu, 28 May 2020 09:19:07 -0300
+Subject: Fix process_link_changes handling 'up' interfaces
+
+b7f1d9b04212 refactored process_link_changes with helper methods to get
+the interface driver name and MAC address. This new code introduced a
+regression where it's possible for an interface in the up state to be
+included in the changelist by its MAC address.
+
+This patch restores the previous behaviour, skipping interfaces that
+don't have driver_name set.
+
+Fixes: https://bugs.launchpad.net/bugs/1875411
+Origin: upstream, https://github.com/CanonicalLtd/netplan/commit/8f77deec17ce
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1875411
+---
+ netplan/cli/commands/apply.py | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/netplan/cli/commands/apply.py b/netplan/cli/commands/apply.py
+index cf9f122..4b91ae9 100644
+--- a/netplan/cli/commands/apply.py
++++ b/netplan/cli/commands/apply.py
+@@ -244,6 +244,9 @@ class NetplanApply(utils.NetplanCommand):
+                 continue
+ 
+             driver_name = utils.get_interface_driver_name(interface, only_down=True)
++            if not driver_name:
++                # don't allow up interfaces to match by mac
++                continue
+             macaddress = utils.get_interface_macaddress(interface)
+             if driver_name in matches['by-driver']:
+                 new_name = matches['by-driver'][driver_name]
